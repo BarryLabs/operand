@@ -34,10 +34,10 @@ pub fn main() !void {
     ray.SetTargetFPS(60);
 
     const buttons = [_]Button{
-        .{ .rect = .{ .x = 10, .y = 100, .width = 70, .height = 60 }, .label = "C", .value = 100 },
-        .{ .rect = .{ .x = 90, .y = 100, .width = 70, .height = 60 }, .label = "/", .value = 101 },
-        .{ .rect = .{ .x = 170, .y = 100, .width = 70, .height = 60 }, .label = "*", .value = 102 },
-        .{ .rect = .{ .x = 250, .y = 100, .width = 60, .height = 60 }, .label = "-", .value = 103 },
+        .{ .rect = .{ .x = 10, .y = 100, .width = 55, .height = 60 }, .label = "C", .value = 100 },
+        .{ .rect = .{ .x = 140, .y = 100, .width = 55, .height = 60 }, .label = "/", .value = 101 },
+        .{ .rect = .{ .x = 205, .y = 100, .width = 50, .height = 60 }, .label = "*", .value = 102 },
+        .{ .rect = .{ .x = 260, .y = 100, .width = 50, .height = 60 }, .label = "-", .value = 103 },
         .{ .rect = .{ .x = 10, .y = 170, .width = 70, .height = 60 }, .label = "7", .value = 7 },
         .{ .rect = .{ .x = 90, .y = 170, .width = 70, .height = 60 }, .label = "8", .value = 8 },
         .{ .rect = .{ .x = 170, .y = 170, .width = 70, .height = 60 }, .label = "9", .value = 9 },
@@ -51,6 +51,7 @@ pub fn main() !void {
         .{ .rect = .{ .x = 250, .y = 310, .width = 60, .height = 130 }, .label = "=", .value = 105 },
         .{ .rect = .{ .x = 10, .y = 380, .width = 150, .height = 60 }, .label = "0", .value = 0 },
         .{ .rect = .{ .x = 170, .y = 380, .width = 70, .height = 60 }, .label = ".", .value = 106 },
+        .{ .rect = .{ .x = 75, .y = 100, .width = 55, .height = 60 }, .label = "<-", .value = 107 },
     };
 
     current_input[0] = '0';
@@ -59,6 +60,7 @@ pub fn main() !void {
     refreshDisplay();
 
     while (!ray.WindowShouldClose()) {
+        handleKeyboardInput();
         if (ray.IsMouseButtonPressed(ray.MOUSE_LEFT_BUTTON)) {
             const mouse = ray.GetMousePosition();
             for (buttons) |btn| {
@@ -143,21 +145,6 @@ fn handleButton(value: u8) void {
             fresh_input = true;
             refreshDisplay();
         },
-        // 105 => {
-        //     if (lhs != null and current_op != .none and !fresh_input) {
-        //         const rhs = parseInput();
-        //         const result = calculate(lhs.?, current_op, rhs);
-
-        //         const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
-        //         input_len = res_str.len;
-        //         current_input[input_len] = 0;
-
-        //         lhs = null;
-        //         current_op = .none;
-        //         fresh_input = true;
-        //         refreshDisplay();
-        //     }
-        // },
         105 => {
             if (lhs != null and current_op != .none and !fresh_input) {
                 const rhs = parseInput();
@@ -187,7 +174,55 @@ fn handleButton(value: u8) void {
                 refreshDisplay();
             }
         },
+        107 => {
+            handleBackspace();
+        },
         else => {},
+    }
+}
+
+fn handleKeyboardInput() void {
+    const keys = [_]struct { key: c_int, val: u8 }{
+        .{ .key = ray.KEY_ZERO, .val = 0 },  .{ .key = ray.KEY_KP_0, .val = 0 },
+        .{ .key = ray.KEY_ONE, .val = 1 },   .{ .key = ray.KEY_KP_1, .val = 1 },
+        .{ .key = ray.KEY_TWO, .val = 2 },   .{ .key = ray.KEY_KP_2, .val = 2 },
+        .{ .key = ray.KEY_THREE, .val = 3 }, .{ .key = ray.KEY_KP_3, .val = 3 },
+        .{ .key = ray.KEY_FOUR, .val = 4 },  .{ .key = ray.KEY_KP_4, .val = 4 },
+        .{ .key = ray.KEY_FIVE, .val = 5 },  .{ .key = ray.KEY_KP_5, .val = 5 },
+        .{ .key = ray.KEY_SIX, .val = 6 },   .{ .key = ray.KEY_KP_6, .val = 6 },
+        .{ .key = ray.KEY_SEVEN, .val = 7 }, .{ .key = ray.KEY_KP_7, .val = 7 },
+        .{ .key = ray.KEY_EIGHT, .val = 8 }, .{ .key = ray.KEY_KP_8, .val = 8 },
+        .{ .key = ray.KEY_NINE, .val = 9 },  .{ .key = ray.KEY_KP_9, .val = 9 },
+    };
+
+    for (keys) |k| {
+        if (ray.IsKeyPressed(k.key)) {
+            handleButton(k.val);
+        }
+    }
+
+    if (ray.IsKeyPressed(ray.KEY_ESCAPE)) handleButton(100);
+    if (ray.IsKeyPressed(ray.KEY_KP_DIVIDE)) handleButton(101);
+    if (ray.IsKeyPressed(ray.KEY_KP_MULTIPLY)) handleButton(102);
+    if (ray.IsKeyPressed(ray.KEY_MINUS)) handleButton(103);
+    if (ray.IsKeyPressed(ray.KEY_KP_SUBTRACT)) handleButton(103);
+    if (ray.IsKeyPressed(ray.KEY_KP_ADD)) handleButton(104);
+    if (ray.IsKeyPressed(ray.KEY_ENTER)) handleButton(105);
+    if (ray.IsKeyPressed(ray.KEY_KP_ENTER)) handleButton(105);
+    if (ray.IsKeyPressed(ray.KEY_PERIOD)) handleButton(106);
+    if (ray.IsKeyPressed(ray.KEY_KP_DECIMAL)) handleButton(106);
+    if (ray.IsKeyPressed(ray.KEY_BACKSPACE)) handleBackspace();
+}
+
+fn handleBackspace() void {
+    if (!fresh_input and input_len > 0) {
+        input_len -= 1;
+        if (input_len == 0) {
+            current_input[0] = '0';
+            input_len = 1;
+        }
+        current_input[input_len] = 0;
+        refreshDisplay();
     }
 }
 
@@ -242,17 +277,19 @@ fn refreshDisplay() void {
 }
 
 fn formatFloatClean(buf: []u8, value: f64) []const u8 {
-    const formatted = std.fmt.bufPrint(buf, "{d:.10}", .{value}) catch return "Error";
+    const formatted = std.fmt.bufPrint(buf, "{d:.10}", .{value}) catch std.fmt.bufPrint(buf, "{e:.6}", .{value}) catch return "Err";
 
     if (std.mem.indexOfScalar(u8, formatted, '.')) |dot_idx| {
         var end = formatted.len;
         while (end > dot_idx + 1 and formatted[end - 1] == '0') {
             end -= 1;
         }
-        if (end == dot_idx + 1) {
-            end = dot_idx;
-        }
-        return formatted[0..end];
+        if (end == dot_idx + 1) end = dot_idx;
+
+        buf[end] = 0;
+        return buf[0..end];
     }
+
+    buf[formatted.len] = 0;
     return formatted;
 }
