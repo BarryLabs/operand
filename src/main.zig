@@ -131,7 +131,8 @@ fn handleButton(value: u8) void {
             if (lhs != null and !fresh_input) {
                 const result = calculate(lhs.?, current_op, current_val);
                 lhs = result;
-                const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
+
+                const res_str = formatFloatClean(current_input[0..], result);
                 input_len = res_str.len;
                 current_input[input_len] = 0;
             } else if (lhs == null) {
@@ -142,12 +143,27 @@ fn handleButton(value: u8) void {
             fresh_input = true;
             refreshDisplay();
         },
+        // 105 => {
+        //     if (lhs != null and current_op != .none and !fresh_input) {
+        //         const rhs = parseInput();
+        //         const result = calculate(lhs.?, current_op, rhs);
+
+        //         const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
+        //         input_len = res_str.len;
+        //         current_input[input_len] = 0;
+
+        //         lhs = null;
+        //         current_op = .none;
+        //         fresh_input = true;
+        //         refreshDisplay();
+        //     }
+        // },
         105 => {
             if (lhs != null and current_op != .none and !fresh_input) {
                 const rhs = parseInput();
                 const result = calculate(lhs.?, current_op, rhs);
 
-                const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
+                const res_str = formatFloatClean(current_input[0..], result);
                 input_len = res_str.len;
                 current_input[input_len] = 0;
 
@@ -208,11 +224,14 @@ fn refreshDisplay() void {
             .none => ' ',
         };
 
+        var lhs_buf: [32]u8 = undefined;
+        const lhs_str = formatFloatClean(&lhs_buf, lhs.?);
+
         if (fresh_input) {
-            const slice = std.fmt.bufPrint(&display_buf, "{d} {c}", .{ lhs.?, op_char }) catch "Error";
+            const slice = std.fmt.bufPrint(&display_buf, "{s} {c}", .{ lhs_str, op_char }) catch "Error";
             display_len = slice.len;
         } else {
-            const slice = std.fmt.bufPrint(&display_buf, "{d} {c} {s}", .{ lhs.?, op_char, current_input[0..input_len] }) catch "Error";
+            const slice = std.fmt.bufPrint(&display_buf, "{s} {c} {s}", .{ lhs_str, op_char, current_input[0..input_len] }) catch "Error";
             display_len = slice.len;
         }
     } else {
@@ -220,4 +239,20 @@ fn refreshDisplay() void {
         display_len = input_len;
     }
     display_buf[display_len] = 0;
+}
+
+fn formatFloatClean(buf: []u8, value: f64) []const u8 {
+    const formatted = std.fmt.bufPrint(buf, "{d:.10}", .{value}) catch return "Error";
+
+    if (std.mem.indexOfScalar(u8, formatted, '.')) |dot_idx| {
+        var end = formatted.len;
+        while (end > dot_idx + 1 and formatted[end - 1] == '0') {
+            end -= 1;
+        }
+        if (end == dot_idx + 1) {
+            end = dot_idx;
+        }
+        return formatted[0..end];
+    }
+    return formatted;
 }
