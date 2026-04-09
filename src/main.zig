@@ -17,11 +17,13 @@ const Operator = enum {
     div,
 };
 
+var lhs: ?f64 = null;
+var current_op: Operator = .none;
 var current_input: [32]u8 = undefined;
 var input_len: usize = 0;
-var first_operand: f64 = 0;
-var current_op: Operator = .none;
-var should_clear = false;
+var fresh_input: bool = true;
+var display_buf: [64]u8 = undefined;
+var display_len: usize = 0;
 
 pub fn main() !void {
     const screenWidth = 320;
@@ -54,6 +56,7 @@ pub fn main() !void {
     current_input[0] = '0';
     current_input[1] = 0;
     input_len = 1;
+    refreshDisplay();
 
     while (!ray.WindowShouldClose()) {
         if (ray.IsMouseButtonPressed(ray.MOUSE_LEFT_BUTTON)) {
@@ -70,12 +73,12 @@ pub fn main() !void {
         ray.ClearBackground(ray.BLACK);
 
         ray.DrawRectangle(10, 10, 300, 80, ray.DARKGRAY);
-
-        const text_width = ray.MeasureText(&current_input[0], 40);
-        ray.DrawText(&current_input[0], 300 - text_width - 10, 30, 40, ray.WHITE);
+        const text_width = ray.MeasureText(&display_buf[0], 40);
+        const clamped_width = @min(text_width, 280);
+        ray.DrawText(&display_buf[0], 300 - clamped_width - 10, 30, 40, ray.WHITE);
 
         for (buttons) |btn| {
-            const color = if (btn.value >= 100) ray.ORANGE else ray.LIGHTGRAY;
+            const color = if (btn.value >= 100 and btn.value != 105) ray.ORANGE else if (btn.value == 105) ray.GREEN else ray.LIGHTGRAY;
             ray.DrawRectangleRec(btn.rect, color);
             ray.DrawRectangleLinesEx(btn.rect, 2, ray.DARKGRAY);
 
@@ -91,9 +94,9 @@ pub fn main() !void {
 fn handleButton(value: u8) void {
     switch (value) {
         0...9 => {
-            if (should_clear) {
+            if (fresh_input) {
                 input_len = 0;
-                should_clear = false;
+                fresh_input = false;
             }
             if (input_len < current_input.len - 1) {
                 if (input_len == 1 and current_input[0] == '0') {
@@ -102,63 +105,84 @@ fn handleButton(value: u8) void {
                 current_input[input_len] = '0' + value;
                 input_len += 1;
                 current_input[input_len] = 0;
+                refreshDisplay();
             }
         },
         100 => {
+            lhs = null;
+            current_op = .none;
             input_len = 1;
             current_input[0] = '0';
             current_input[1] = 0;
-            first_operand = 0;
-            current_op = .none;
+            fresh_input = true;
+            refreshDisplay();
         },
         101...104 => {
-            first_operand = parseInput();
-            current_op = switch (value) {
+            const new_op: Operator = switch (value) {
                 101 => .div,
                 102 => .mul,
                 103 => .sub,
                 104 => .add,
                 else => unreachable,
             };
-            should_clear = true;
+
+            const current_val = parseInput();
+
+            if (lhs != null and !fresh_input) {
+                const result = calculate(lhs.?, current_op, current_val);
+                lhs = result;
+                const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
+                input_len = res_str.len;
+                current_input[input_len] = 0;
+            } else if (lhs == null) {
+                lhs = current_val;
+            }
+
+            current_op = new_op;
+            fresh_input = true;
+            refreshDisplay();
         },
         105 => {
-            const second = parseInput();
-            const result = switch (current_op) {
-                .add => first_operand + second,
-                .sub => first_operand - second,
-                .mul => first_operand * second,
-                .div => if (second != 0) first_operand / second else 0,
-                .none => second,
-            };
+            if (lhs != null and current_op != .none and !fresh_input) {
+                const rhs = parseInput();
+                const result = calculate(lhs.?, current_op, rhs);
 
-            var buf: [32]u8 = undefined;
-            const result_str = std.fmt.bufPrint(&buf, "{d}", .{result}) catch "Error";
-
-            if (result_str.len < current_input.len) {
-                @memcpy(current_input[0..result_str.len], result_str);
-                input_len = result_str.len;
+                const res_str = std.fmt.bufPrint(current_input[0..], "{d}", .{result}) catch "Error";
+                input_len = res_str.len;
                 current_input[input_len] = 0;
+
+                lhs = null;
+                current_op = .none;
+                fresh_input = true;
+                refreshDisplay();
             }
-            current_op = .none;
         },
         106 => {
-            if (should_clear) {
+            if (fresh_input) {
                 input_len = 0;
-                should_clear = false;
+                fresh_input = false;
+                current_input[0] = '0';
+                input_len = 1;
             }
             if (input_len < current_input.len - 1 and !hasDecimal()) {
-                if (input_len == 0) {
-                    current_input[0] = '0';
-                    input_len = 1;
-                }
                 current_input[input_len] = '.';
                 input_len += 1;
                 current_input[input_len] = 0;
+                refreshDisplay();
             }
         },
         else => {},
     }
+}
+
+fn calculate(a: f64, op: Operator, b: f64) f64 {
+    return switch (op) {
+        .add => a + b,
+        .sub => a - b,
+        .mul => a * b,
+        .div => if (b != 0) a / b else 0,
+        .none => b,
+    };
 }
 
 fn parseInput() f64 {
@@ -170,4 +194,30 @@ fn hasDecimal() bool {
         if (c == '.') return true;
     }
     return false;
+}
+
+fn refreshDisplay() void {
+    current_input[input_len] = 0;
+
+    if (lhs != null and current_op != .none) {
+        const op_char: u8 = switch (current_op) {
+            .add => '+',
+            .sub => '-',
+            .mul => '*',
+            .div => '/',
+            .none => ' ',
+        };
+
+        if (fresh_input) {
+            const slice = std.fmt.bufPrint(&display_buf, "{d} {c}", .{ lhs.?, op_char }) catch "Error";
+            display_len = slice.len;
+        } else {
+            const slice = std.fmt.bufPrint(&display_buf, "{d} {c} {s}", .{ lhs.?, op_char, current_input[0..input_len] }) catch "Error";
+            display_len = slice.len;
+        }
+    } else {
+        @memcpy(display_buf[0..input_len], current_input[0..input_len]);
+        display_len = input_len;
+    }
+    display_buf[display_len] = 0;
 }
