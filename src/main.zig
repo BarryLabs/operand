@@ -1,14 +1,20 @@
+//! Operand
+
 const std = @import("std");
 const ray = @cImport({
     @cInclude("raylib.h");
 });
 
 const Button = struct {
+    /// Screen Position and Dimensions
     rect: ray.Rectangle,
+    /// Text Label for Button
     label: []const u8,
+    /// Internal Identifier for Digits and Operations
     value: u8,
 };
 
+/// Available Maths Operations
 const Operator = enum {
     none,
     add,
@@ -17,8 +23,11 @@ const Operator = enum {
     div,
 };
 
+/// Common Calculation Errors
 const CalcError = error{
+    /// Attempted Division by Zero
     DivideByZero,
+    /// Display Overflow
     Overflow,
 };
 
@@ -295,12 +304,15 @@ fn handleKeyboardInput() void {
     }
 
     if (ray.IsKeyPressed(ray.KEY_ESCAPE)) handleButton(100);
+    if (ray.IsKeyPressed(ray.KEY_SLASH)) handleButton(101);
     if (ray.IsKeyPressed(ray.KEY_KP_DIVIDE)) handleButton(101);
     if (ray.IsKeyPressed(ray.KEY_MINUS)) handleButton(103);
     if (ray.IsKeyPressed(ray.KEY_KP_SUBTRACT)) handleButton(103);
     if (ray.IsKeyPressed(ray.KEY_KP_ADD)) handleButton(104);
     if (ray.IsKeyPressed(ray.KEY_ENTER)) handleButton(105);
     if (ray.IsKeyPressed(ray.KEY_KP_ENTER)) handleButton(105);
+    if (ray.IsKeyPressed(ray.KEY_EQUAL)) handleButton(105);
+    if (ray.IsKeyPressed(ray.KEY_KP_EQUAL)) handleButton(105);
     if (ray.IsKeyPressed(ray.KEY_PERIOD)) handleButton(106);
     if (ray.IsKeyPressed(ray.KEY_KP_DECIMAL)) handleButton(106);
     if (ray.IsKeyPressed(ray.KEY_BACKSPACE)) handleBackspace();
@@ -395,4 +407,43 @@ fn formatFloatClean(buf: []u8, value: f64) CalcError![]const u8 {
 
     buf[formatted.len] = 0;
     return formatted;
+}
+
+test "calculations" {
+    try std.testing.expectEqual(@as(f64, 5.0), try calculate(2.0, .add, 3.0));
+    try std.testing.expectEqual(@as(f64, 2.0), try calculate(5.0, .sub, 3.0));
+    try std.testing.expectEqual(@as(f64, 6.0), try calculate(2.0, .mul, 3.0));
+    try std.testing.expectEqual(@as(f64, 2.5), try calculate(5.0, .div, 2.0));
+}
+
+test "divide by zero" {
+    const result = calculate(5.0, .div, 0.0);
+    try std.testing.expectError(error.DivideByZero, result);
+}
+
+test "formatFloatClean function" {
+    var buf: [64]u8 = undefined;
+
+    const result = try formatFloatClean(&buf, 5.0);
+    try std.testing.expectEqualStrings("5", result);
+
+    const result2 = try formatFloatClean(&buf, 1.5);
+    try std.testing.expectEqualStrings("1.5", result2);
+}
+
+test "multiplication overflow" {
+    const inf = std.math.inf(f64);
+    const result = calculate(1.0, .mul, inf);
+    try std.testing.expectError(error.Overflow, result);
+}
+
+test "display clearing upon calculation" {
+    lhs = 5.0;
+    current_op = .add;
+    @memcpy(current_input[0..1], "3");
+    input_len = 1;
+    fresh_input = true;
+
+    handleButton(2);
+    try std.testing.expectEqualStrings("2", current_input[0..input_len]);
 }

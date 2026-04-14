@@ -1,3 +1,5 @@
 # Operand
 
-A simple calculator.
+Just a simple calculator I made for my own use and to explore Zig.
+
+Intended to be as simple as possible in functionality and design.
